@@ -1,9 +1,14 @@
 // Command layerid-edge runs the scoring engine.
 //
-// Configuration is via env (12-factor). See README for the full set.
+// Configuration via env vars (12-factor):
 //
-// Phase: scaffold. Real intel-service upstream client, Postgres consume
-// path, and JWT auth all land in subsequent commits — see ../../DESIGN.md.
+//   LAYERID_EDGE_LISTEN          (default ":8080")
+//   LAYERID_EDGE_DEFAULT_SCORER  (default "weighted")
+//   LAYERID_EDGE_REGION          (default "dev")
+//   LAYERID_EDGE_AUTH_DISABLED   (default "" — set to "1" for local dev)
+//
+// Phase: in-memory store, no Postgres wiring yet, no JWKS fetch. See
+// DESIGN.md for the migration plan.
 package main
 
 import (
@@ -17,16 +22,19 @@ import (
 	"time"
 
 	"github.com/layerid/edge/internal/api"
+	"github.com/layerid/edge/internal/auth"
 	"github.com/layerid/edge/internal/score"
 	"github.com/layerid/edge/internal/score/constscorer"
 	"github.com/layerid/edge/internal/score/weighted"
+	"github.com/layerid/edge/internal/store/memory"
 )
 
 const (
-	defaultListenAddr     = ":8080"
-	defaultDefaultScorer  = "weighted"
-	buildVersion          = "0.1.0-scaffold"
-	gracefulShutdownGrace = 10 * time.Second
+	defaultListenAddr    = ":8080"
+	defaultDefaultScorer = "weighted"
+	defaultRegion        = "dev"
+	buildVersion         = "0.2.0-scaffold"
+	gracefulShutdown     = 10 * time.Second
 )
 
 func main() {
@@ -37,6 +45,8 @@ func main() {
 
 	addr := envOr("LAYERID_EDGE_LISTEN", defaultListenAddr)
 	defaultScorer := envOr("LAYERID_EDGE_DEFAULT_SCORER", defaultDefaultScorer)
+	region := envOr("LAYERID_EDGE_REGION", defaultRegion)
+	authDisabled := os.Getenv("LAYERID_EDGE_AUTH_DISABLED") == "1"
 
 	reg := score.NewRegistry()
 	mustRegister(reg, weighted.New())
@@ -49,22 +59,48 @@ func main() {
 		"default", defaultScorer,
 	)
 
+	st := memory.New(time.Now)
+	logger.Warn("using in-memory store — set up Postgres before production",
+		"package", "internal/store/memory",
+	)
+
+	// Auth middleware: for now, no JWKS configured. When auth.layerid.io
+	// is up, swap StaticKeys for a JWKS client.
+	var authMW func(http.Handler) http.Handler
+	if !authDisabled {
+		logger.Warn("auth middleware enabled with empty key resolver — set up JWKS before production")
+		authMW = auth.Middleware(auth.VerifyOptions{
+			Keys: auth.StaticKeys{},
+		})
+	} else {
+		logger.Warn("LAYERID_EDGE_AUTH_DISABLED=1 — auth middleware is a passthrough; dev only")
+	}
+
 	srv := &http.Server{
-		Addr:              addr,
-		Handler:           api.New(reg, defaultScorer, buildVersion).Routes(),
+		Addr: addr,
+		Handler: api.New(api.Options{
+			Registry:       reg,
+			Store:          st,
+			DefaultScorer:  defaultScorer,
+			Region:         region,
+			Version:        buildVersion,
+			AuthMiddleware: authMW,
+		}).Routes(),
 		ReadHeaderTimeout: 5 * time.Second,
 	}
 
-	// Run server, capture errors on a channel for the shutdown select.
 	errCh := make(chan error, 1)
 	go func() {
-		logger.Info("layerid-edge listening", "addr", addr, "version", buildVersion)
+		logger.Info("layerid-edge listening",
+			"addr", addr,
+			"version", buildVersion,
+			"region", region,
+		)
 		if err := srv.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
 			errCh <- err
 		}
 	}()
 
-	// Wait for signal or server error.
 	sigCh := make(chan os.Signal, 1)
 	signal.Notify(sigCh, syscall.SIGINT, syscall.SIGTERM)
 
@@ -76,7 +112,7 @@ func main() {
 		os.Exit(1)
 	}
 
-	ctx, cancel := context.WithTimeout(context.Background(), gracefulShutdownGrace)
+	ctx, cancel := context.WithTimeout(context.Background(), gracefulShutdown)
 	defer cancel()
 	if err := srv.Shutdown(ctx); err != nil {
 		logger.Error("graceful shutdown failed", "err", err)
