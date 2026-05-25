@@ -1,0 +1,128 @@
+// layerid-edge gRPC service definition.
+//
+// This is the public contract. Customers integrate against this; their SDKs
+// generate stubs from this file. Treat it accordingly:
+//   • additive changes only
+//   • `reserved` field numbers for removals
+//   • long deprecation windows for renames
+//
+// Mirror the same discipline as intel-service/proto/honeypot.proto.
+
+syntax = "proto3";
+
+package layerid.edge.v1;
+
+option go_package = "github.com/layerid/edge/proto/edge/v1;edgev1";
+
+// ─── Service ────────────────────────────────────────────────────────
+
+service Edge {
+  // Score a request. Idempotent — call as many times as needed.
+  rpc Score (ScoreRequest) returns (ScoreResponse);
+
+  // One-time race-safe consume of a req_id. Subsequent calls with the
+  // same req_id return ALREADY_CONSUMED. Use this when the score must
+  // not be replayable (login submit, checkout confirm).
+  rpc Consume (ConsumeRequest) returns (ScoreResponse);
+
+  // Health probe — used by K8s liveness / readiness.
+  rpc Health (HealthRequest) returns (HealthResponse);
+}
+
+// ─── Requests / responses ───────────────────────────────────────────
+
+message ScoreRequest {
+  string ip = 1;                    // client IP (post-trusted-proxy unwrap)
+  string ja3 = 2;                   // optional — empty if non-TLS
+  DeviceSignals device = 3;         // signals collected by the browser SDK
+  string api_key = 4;               // identifies the tenant
+  bool shadow = 5;                  // shadow-mode evaluation (no billing impact)
+  string req_id = 6;                // optional — caller can pre-allocate
+}
+
+message ConsumeRequest {
+  string req_id = 1;                // required — one-time identifier
+  string api_key = 2;
+}
+
+message ScoreResponse {
+  string req_id = 1;
+  double score = 2;                 // advisory — 0.0 to 1.0
+  string verdict = 3;               // suggestion — "allow" | "step-up" | "deny" | "log"
+  Signals signals = 4;              // the substantive payload
+  bool shadow = 5;                  // mirrors ScoreRequest.shadow
+  int64 ts = 6;                     // server timestamp (unix seconds)
+}
+
+message HealthRequest {}
+message HealthResponse {
+  bool ok = 1;
+  string version = 2;               // semver of this binary
+  bool upstream_ok = 3;              // can we reach intel-service?
+  int64 cache_size = 4;             // entries in local intel cache
+}
+
+// ─── Device signals (collected by the JS SDK) ───────────────────────
+
+message DeviceSignals {
+  string canvas = 1;                // canvas fingerprint hash
+  string webgl = 2;                 // WebGL renderer string
+  string audio = 3;                 // AudioContext fingerprint
+  repeated string fonts = 4;        // enumerated installed fonts
+  bool headless = 5;
+  bool webdriver = 6;
+  string user_agent_hash = 7;       // hashed, not raw — PII discipline
+  StunResult stun = 8;
+  string timezone = 9;
+  string locale = 10;
+  int32 screen_w = 11;
+  int32 screen_h = 12;
+  double rtt_ratio = 13;            // observed RTT vs geo-expected
+  string device_id = 14;            // 64-bit derived identifier
+  // reserved for future device signals
+  reserved 15 to 31;
+}
+
+message StunResult {
+  bool leaked = 1;
+  string public_ip = 2;
+  string local_ip = 3;
+}
+
+// ─── Signals (the substantive Lookup response payload) ──────────────
+
+message Signals {
+  // Intel-derived (from intel-service/collector)
+  Ja3Breadth ja3_breadth = 1;
+  ResidentialProxy residential_proxy = 2;
+  string tcp_fingerprint = 3;       // device class: "iot_cctv" | "android_tv" | "real_macos" | …
+  DhtSightings dht_sightings = 4;
+
+  // Device-derived (from DeviceSignals, normalised)
+  bool headless = 10;
+  bool webdriver = 11;
+  string stun_leak = 12;
+  double rtt_ratio = 13;
+
+  // reserved for future intel signals
+  reserved 5 to 9;
+  // reserved for future device signals
+  reserved 14 to 19;
+}
+
+message Ja3Breadth {
+  string label = 1;                 // "narrow" | "moderate" | "wide"
+  int32 sni_count = 2;              // distinct SNIs in last 7d
+  double top_sni_share = 3;         // 0..1
+}
+
+message ResidentialProxy {
+  repeated string seen_in = 1;      // ["iproyal", "webshare", …]
+  double confidence = 2;            // 0..1
+  int64 last_seen_ts = 3;
+}
+
+message DhtSightings {
+  int32 count = 1;
+  repeated string categories = 2;   // ["software-crack", "game", …]
+}

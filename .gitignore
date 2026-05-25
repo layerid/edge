@@ -1,0 +1,21 @@
+/layerid-edge
+/dist/
+*.exe
+*.test
+*.out
+
+# Go workspace
+go.work
+go.work.sum
+
+# Editor / OS
+.DS_Store
+.idea/
+.vscode/
+*.swp
+
+# Local snapshot dumps for offline mode (developers may stash these)
+snapshots/
+
+# Claude Code session state
+.claude/
