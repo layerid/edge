@@ -65,7 +65,8 @@ func main() {
 	)
 
 	// Auth middleware: for now, no JWKS configured. When auth.layerid.io
-	// is up, swap StaticKeys for a JWKS client.
+	// is up, swap StaticKeys for a JWKS client. In auth-disabled mode we
+	// inject synthetic claims (tenant_0) so handlers see a valid context.
 	var authMW func(http.Handler) http.Handler
 	if !authDisabled {
 		logger.Warn("auth middleware enabled with empty key resolver — set up JWKS before production")
@@ -73,7 +74,8 @@ func main() {
 			Keys: auth.StaticKeys{},
 		})
 	} else {
-		logger.Warn("LAYERID_EDGE_AUTH_DISABLED=1 — auth middleware is a passthrough; dev only")
+		logger.Warn("LAYERID_EDGE_AUTH_DISABLED=1 — injecting synthetic tenant_0 claims; dev only")
+		authMW = auth.DevPassthrough()
 	}
 
 	srv := &http.Server{

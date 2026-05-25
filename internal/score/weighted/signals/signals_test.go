@@ -88,3 +88,77 @@ func TestWindowScreenRatio(t *testing.T) {
 		}
 	}
 }
+
+func TestWebdriver(t *testing.T) {
+	tr, fa := true, false
+	cases := []struct {
+		webdriver *bool
+		wantScore float64
+		wantAvail bool
+		label     string
+	}{
+		{nil, 0.0, false, "not reported"},
+		{&fa, 1.0, true, "false (real browser)"},
+		{&tr, 0.0, true, "true (automation)"},
+	}
+	for _, c := range cases {
+		sc, avail, _ := Webdriver(score.Signals{Webdriver: c.webdriver})
+		if sc != c.wantScore || avail != c.wantAvail {
+			t.Errorf("%s: got (%v, %v), want (%v, %v)", c.label, sc, avail, c.wantScore, c.wantAvail)
+		}
+	}
+}
+
+func TestTimezone(t *testing.T) {
+	cases := []struct {
+		tz        string
+		wantScore float64
+		wantAvail bool
+		label     string
+	}{
+		{"", 0.0, false, "empty"},
+		{"Europe/Berlin", 1.0, true, "IANA"},
+		{"America/New_York", 1.0, true, "IANA with underscore"},
+		{"America/Argentina/Cordoba", 1.0, true, "three-segment IANA"},
+		{"Asia/Ho_Chi_Minh", 1.0, true, "three-token middle"},
+		{"UTC", 0.3, true, "bare UTC"},
+		{"Etc/UTC", 0.3, true, "Etc/UTC"},
+		{"+02:00", 0.2, true, "numeric offset"},
+		{"foobar", 0.2, true, "single token gibberish"},
+		{"/Foo", 0.2, true, "leading slash"},
+		{"Foo/", 0.2, true, "trailing slash"},
+		{"a/b/c/d", 0.2, true, "four segments"},
+	}
+	for _, c := range cases {
+		sc, avail, _ := Timezone(score.Signals{TZ: c.tz})
+		if sc != c.wantScore || avail != c.wantAvail {
+			t.Errorf("%s (%q): got (%v, %v), want (%v, %v)", c.label, c.tz, sc, avail, c.wantScore, c.wantAvail)
+		}
+	}
+}
+
+func TestWebGLRenderer(t *testing.T) {
+	cases := []struct {
+		vendor    string
+		wantScore float64
+		wantAvail bool
+		label     string
+	}{
+		{"", 0.0, false, "empty"},
+		{"Apple Inc.", 1.0, true, "Apple"},
+		{"Intel Inc.", 1.0, true, "Intel"},
+		{"NVIDIA Corporation", 1.0, true, "NVIDIA"},
+		{"Qualcomm", 1.0, true, "Qualcomm"},
+		{"Google Inc. (SwiftShader)", 0.1, true, "SwiftShader software"},
+		{"Mesa/X.org llvmpipe", 0.1, true, "llvmpipe"},
+		{"Mesa OffScreen", 0.1, true, "Mesa OffScreen"},
+		{"ANGLE (Google, SwiftShader, ...)", 0.1, true, "ANGLE Google"},
+		{"Mystery GPU Co", 0.6, true, "unknown vendor"},
+	}
+	for _, c := range cases {
+		sc, avail, _ := WebGLRenderer(score.Signals{WebGLVendor: c.vendor})
+		if sc != c.wantScore || avail != c.wantAvail {
+			t.Errorf("%s (%q): got (%v, %v), want (%v, %v)", c.label, c.vendor, sc, avail, c.wantScore, c.wantAvail)
+		}
+	}
+}

@@ -126,6 +126,9 @@ func DefaultRegistry() *Registry {
 	r.Register("timings", 0.05, Timings)
 	r.Register("screen_resolution", 0.05, ScreenResolution)
 	r.Register("window_screen_ratio", 0.05, WindowScreenRatio)
+	r.Register("webdriver", 0.20, Webdriver)
+	r.Register("timezone", 0.10, Timezone)
+	r.Register("webgl_renderer", 0.05, WebGLRenderer)
 
 	// Pending ports — registered as stubs with weight 0. Replace each
 	// notImplemented with the real SignalFunc when porting from legacy.
@@ -133,9 +136,6 @@ func DefaultRegistry() *Registry {
 	r.Register("os_match",           0.20, notImplemented)
 	r.Register("headers_order",      0.10, notImplemented)
 	r.Register("proxy_detection",    0.25, notImplemented)
-	r.Register("timezone",           0.10, notImplemented)
-	r.Register("webgl_renderer",     0.05, notImplemented)
-	r.Register("webdriver",          0.20, notImplemented)
 	r.Register("residential_proxy",  0.15, notImplemented)
 	r.Register("ip_reputation",      0.25, notImplemented)
 	r.Register("stun_webrtc",        0.25, notImplemented)

@@ -22,6 +22,22 @@ func FromContext(ctx context.Context) (*Claims, bool) {
 	return c, ok
 }
 
+// DevPassthrough returns a middleware that skips signature verification
+// and injects a synthetic claim set (tenant_0, sub=dev). Use for local
+// development and integration tests only — never enable in production.
+//
+// The boundary is enforced in cmd/layerid-edge/main.go: this is only
+// wired when LAYERID_EDGE_AUTH_DISABLED=1.
+func DevPassthrough() func(http.Handler) http.Handler {
+	return func(next http.Handler) http.Handler {
+		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			claims := &Claims{Subject: "tenant_0"}
+			ctx := context.WithValue(r.Context(), claimsKey, claims)
+			next.ServeHTTP(w, r.WithContext(ctx))
+		})
+	}
+}
+
 // Middleware verifies the Authorization: Bearer header and stashes the
 // claims in the request context. Failed verification returns 401 with a
 // JSON error body matching the rest of internal/api/.
