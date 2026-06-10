@@ -3,6 +3,7 @@
 // Configuration via env vars (12-factor):
 //
 //   LAYERID_EDGE_LISTEN          (default ":8080")
+//   LAYERID_EDGE_GRPC_LISTEN     (default ":50051")
 //   LAYERID_EDGE_DEFAULT_SCORER  (default "weighted")
 //   LAYERID_EDGE_REGION          (default "dev")
 //   LAYERID_EDGE_AUTH_DISABLED   (default "" — set to "1" for local dev)
@@ -15,26 +16,32 @@ import (
 	"context"
 	"errors"
 	"log/slog"
+	"net"
 	"net/http"
 	"os"
 	"os/signal"
 	"syscall"
 	"time"
 
+	"google.golang.org/grpc"
+
 	"github.com/layerid/edge/internal/api"
 	"github.com/layerid/edge/internal/auth"
+	"github.com/layerid/edge/internal/grpcapi"
 	"github.com/layerid/edge/internal/score"
 	"github.com/layerid/edge/internal/score/constscorer"
 	"github.com/layerid/edge/internal/score/weighted"
 	"github.com/layerid/edge/internal/store/memory"
+	edgev1 "github.com/layerid/edge/proto/edge/v1"
 )
 
 const (
-	defaultListenAddr    = ":8080"
-	defaultDefaultScorer = "weighted"
-	defaultRegion        = "dev"
-	buildVersion         = "0.2.0-scaffold"
-	gracefulShutdown     = 10 * time.Second
+	defaultListenAddr     = ":8080"
+	defaultGRPCListenAddr = ":50051"
+	defaultDefaultScorer  = "weighted"
+	defaultRegion         = "dev"
+	buildVersion          = "0.2.0-scaffold"
+	gracefulShutdown      = 10 * time.Second
 )
 
 func main() {
@@ -44,6 +51,7 @@ func main() {
 	slog.SetDefault(logger)
 
 	addr := envOr("LAYERID_EDGE_LISTEN", defaultListenAddr)
+	grpcAddr := envOr("LAYERID_EDGE_GRPC_LISTEN", defaultGRPCListenAddr)
 	defaultScorer := envOr("LAYERID_EDGE_DEFAULT_SCORER", defaultDefaultScorer)
 	region := envOr("LAYERID_EDGE_REGION", defaultRegion)
 	authDisabled := os.Getenv("LAYERID_EDGE_AUTH_DISABLED") == "1"
@@ -91,7 +99,18 @@ func main() {
 		ReadHeaderTimeout: 5 * time.Second,
 	}
 
-	errCh := make(chan error, 1)
+	// gRPC server shares the SAME registry + store instances as the HTTP
+	// surface — the two are just different front doors onto one engine.
+	grpcSrv := grpc.NewServer()
+	edgev1.RegisterEdgeServer(grpcSrv, grpcapi.New(grpcapi.Options{
+		Registry:      reg,
+		Store:         st,
+		DefaultScorer: defaultScorer,
+		Region:        region,
+		Version:       buildVersion,
+	}))
+
+	errCh := make(chan error, 2)
 	go func() {
 		logger.Info("layerid-edge listening",
 			"addr", addr,
@@ -99,6 +118,22 @@ func main() {
 			"region", region,
 		)
 		if err := srv.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
+			errCh <- err
+		}
+	}()
+
+	go func() {
+		lis, err := net.Listen("tcp", grpcAddr)
+		if err != nil {
+			errCh <- err
+			return
+		}
+		logger.Info("layerid-edge gRPC listening",
+			"addr", grpcAddr,
+			"version", buildVersion,
+			"region", region,
+		)
+		if err := grpcSrv.Serve(lis); err != nil && !errors.Is(err, grpc.ErrServerStopped) {
 			errCh <- err
 		}
 	}()
@@ -116,6 +151,7 @@ func main() {
 
 	ctx, cancel := context.WithTimeout(context.Background(), gracefulShutdown)
 	defer cancel()
+	grpcSrv.GracefulStop()
 	if err := srv.Shutdown(ctx); err != nil {
 		logger.Error("graceful shutdown failed", "err", err)
 		os.Exit(1)

@@ -129,16 +129,19 @@ func DefaultRegistry() *Registry {
 	r.Register("webdriver", 0.20, Webdriver)
 	r.Register("timezone", 0.10, Timezone)
 	r.Register("webgl_renderer", 0.05, WebGLRenderer)
+	r.Register("proxy_detection", 0.25, ProxyDetection)
+	r.Register("stun_webrtc", 0.25, StunWebrtc)
 
 	// Pending ports — registered as stubs with weight 0. Replace each
 	// notImplemented with the real SignalFunc when porting from legacy.
-	r.Register("ua_match",           0.15, notImplemented)
-	r.Register("os_match",           0.20, notImplemented)
-	r.Register("headers_order",      0.10, notImplemented)
-	r.Register("proxy_detection",    0.25, notImplemented)
-	r.Register("residential_proxy",  0.15, notImplemented)
-	r.Register("ip_reputation",      0.25, notImplemented)
-	r.Register("stun_webrtc",        0.25, notImplemented)
+	// Deferred this task: ua_match / os_match / headers_order need raw-UA
+	// PII (out of scope for the device-only tier); residential_proxy /
+	// ip_reputation need the intel upstream (not wired yet).
+	r.Register("ua_match",          0.15, notImplemented)
+	r.Register("os_match",          0.20, notImplemented)
+	r.Register("headers_order",     0.10, notImplemented)
+	r.Register("residential_proxy", 0.15, notImplemented)
+	r.Register("ip_reputation",     0.25, notImplemented)
 
 	return r
 }

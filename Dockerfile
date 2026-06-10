@@ -3,15 +3,16 @@
 #
 # Multi-stage: build the static binary in a Go 1.25 image, drop it into
 # distroless for a tiny runtime. The binary is the only runtime
-# artifact — no Postgres driver, no JWKS at this phase, just the HTTP
-# server.
+# artifact — no Postgres driver, no JWKS at this phase. Serves both the
+# HTTP API (:8080) and the gRPC Edge service (:50051).
 
 FROM golang:1.25-alpine AS build
 
 WORKDIR /src
 
-# Cache modules separately from sources.
-COPY go.mod go.sum* ./
+# Cache modules separately from sources. go.sum now exists (added with the
+# gRPC + protobuf deps), so copy it explicitly.
+COPY go.mod go.sum ./
 RUN go mod download
 
 COPY . .
@@ -30,5 +31,6 @@ WORKDIR /app
 COPY --from=build /out/layerid-edge /app/layerid-edge
 
 EXPOSE 8080
+EXPOSE 50051
 
 ENTRYPOINT ["/app/layerid-edge"]

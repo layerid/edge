@@ -21,9 +21,13 @@ import (
 //   - Anything else (single token like "foobar", multi-slash, etc.)
 //     → 0.2
 //
-// When intel-service is wired in internal/upstream/, this signal will be
-// upgraded to do the geo-mismatch check that's the real value (10x
-// stronger signal than shape validation).
+// TODO(intel): the faithful legacy TimezoneSignal cross-checks the JS TZ
+// against the IP-derived geo TZ (exact_match / same_region / mismatch
+// ladder, 1.0 / 0.7 / 0.2). That needs the intel-derived geo timezone,
+// which is the deferred intel tier — not implemented here. When
+// intel-service is wired in internal/upstream/, replace this shape-only
+// fallback with the geo-mismatch check (10x stronger than shape
+// validation).
 //
 // Weight 0.10. Even the shape-only version catches headless browsers
 // that set TZ to a system default ("UTC", "Etc/UTC") instead of the

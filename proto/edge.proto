@@ -79,14 +79,24 @@ message DeviceSignals {
   int32 screen_h = 12;
   double rtt_ratio = 13;            // observed RTT vs geo-expected
   string device_id = 14;            // 64-bit derived identifier
+
+  // Window + network-layer signals (added for the legacy scoring port).
+  // Device-only — no raw-UA PII, no intel dependency. Optional; absent
+  // fields leave their signal simply unavailable (drops out of the score).
+  int32 window_w = 15;              // window.innerWidth
+  int32 window_h = 16;              // window.innerHeight
+  int32 app_timing_ms = 17;         // max app-layer timing (ms), SDK-observed
+  int32 tcp_rtt_ms = 18;            // transport RTT (ms), edge/proxy capture
+  string browser_reported_ip = 19;  // JS-claimed public IP (vs transport peer IP)
   // reserved for future device signals
-  reserved 15 to 31;
+  reserved 20 to 31;
 }
 
 message StunResult {
   bool leaked = 1;
   string public_ip = 2;
   string local_ip = 3;
+  repeated string webrtc_local_ips = 4;  // WebRTC host-candidate IPs (from JS)
 }
 
 // ─── Signals (the substantive Lookup response payload) ──────────────

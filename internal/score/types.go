@@ -19,9 +19,10 @@ type Signals struct {
 	// Identity --------------------------------------------------------
 	ReqID    string
 	TenantID int64
-	IP       string // peer IP, post-trusted-proxy unwrap
-	JA3      string // TLS JA3 hash; empty for non-TLS
-	UA       string // raw user-agent string from HTTP request
+	IP                string // peer IP, post-trusted-proxy unwrap
+	BrowserReportedIP string // JS-claimed public IP (compared against IP in ip_match)
+	JA3               string // TLS JA3 hash; empty for non-TLS
+	UA                string // raw user-agent string from HTTP request
 
 	// Intel features (from intel-service) -----------------------------
 	JA3Breadth        *JA3Breadth
@@ -89,9 +90,10 @@ type IPReputation struct {
 }
 
 type STUNResult struct {
-	Leaked   bool
-	PublicIP string
-	LocalIP  string
+	Leaked         bool
+	PublicIP       string
+	LocalIP        string
+	WebRTCLocalIPs []string // WebRTC host-candidate IPs reported by the JS SDK
 }
 
 // Result is what a Scorer returns. Verdict is one of the constants below.

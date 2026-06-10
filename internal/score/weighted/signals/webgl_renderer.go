@@ -8,20 +8,21 @@ import (
 
 // WebGLRenderer scores the WebGL GPU vendor/renderer string.
 //
-// Real devices report a real GPU vendor — "Apple Inc.", "Intel Inc.",
-// "NVIDIA Corporation", "Qualcomm" (Adreno on Android), "ARM" (Mali on
-// Android). Headless Chromium without GPU acceleration falls back to
-// software renderers — "SwiftShader", "ANGLE", "Mesa", or the empty
-// string when WebGL is disabled outright.
+// Real devices report a real GPU vendor; headless Chromium without GPU
+// acceleration falls back to software renderers (SwiftShader, llvmpipe,
+// Mesa) and VMs report their virtual GPUs (VMware, VirtualBox, Parallels).
 //
-// Ported from legacy scoring.py. Weight stays low (0.05) because:
-//   1. The string is trivial to spoof — antidetect tools rewrite it.
-//   2. Some real users disable WebGL or use ungpu'd corp builds.
+// Ported verbatim from legacy fingerprints/ scoring.py (WebGLRendererSignal)
+// + value_objects.WebGLRenderer. Suspicious is checked BEFORE legitimate —
+// "ANGLE (..., SwiftShader)" is suspicious even though it may also name a
+// real vendor. Weight 0.05 (VERY_LOW): the string is trivial to spoof, but
+// the easiest headless setup hits SwiftShader.
 //
-// The signal is still useful because the EASIEST headless setup (plain
-// puppeteer / playwright with no GPU passthrough) hits SwiftShader.
+//	is_suspicious   → 0.2 "suspicious_<pattern>"
+//	is_legitimate   → 1.0 "legitimate_gpu"
+//	else            → 0.6 "unknown_renderer"
 //
-// Unavailable when the field wasn't reported (SDK didn't send it).
+// Unavailable when the field wasn't reported.
 func WebGLRenderer(s score.Signals) (sc float64, available bool, detail string) {
 	v := strings.TrimSpace(s.WebGLVendor)
 	if v == "" {
@@ -29,40 +30,41 @@ func WebGLRenderer(s score.Signals) (sc float64, available bool, detail string) 
 	}
 
 	low := strings.ToLower(v)
-	for _, marker := range softwareRendererMarkers {
-		if strings.Contains(low, marker) {
-			return 0.1, true, "software renderer (" + v + ") — likely headless"
+	for _, p := range webglSuspiciousPatterns {
+		if strings.Contains(low, p) {
+			return 0.2, true, "suspicious_" + strings.ReplaceAll(p, " ", "_")
 		}
 	}
-	for _, marker := range knownGoodVendorMarkers {
-		if strings.Contains(low, marker) {
-			return 1.0, true, "known GPU vendor (" + v + ")"
+	for _, vendor := range webglLegitimateVendors {
+		if strings.Contains(low, vendor) {
+			return 1.0, true, "legitimate_gpu"
 		}
 	}
-	// Unknown vendor — neither suspicious nor confirmed-good. Neutral.
-	return 0.6, true, "unknown vendor (" + v + ")"
+	return 0.6, true, "unknown_renderer"
 }
 
-// softwareRendererMarkers — substrings that indicate CPU-side rendering,
-// which is the default for headless Chromium without --use-gl=desktop.
-var softwareRendererMarkers = []string{
+// webglSuspiciousPatterns — verbatim from value_objects.WebGLRenderer.
+// SUSPICIOUS_PATTERNS. Substrings that indicate CPU-side / virtual GPU
+// rendering.
+var webglSuspiciousPatterns = []string{
 	"swiftshader",
 	"llvmpipe",
+	"virtualbox",
+	"vmware",
+	"parallels",
+	"microsoft basic",
+	"mesa",
 	"software",
-	"mesa offscreen",
-	"angle (google",
 }
 
-// knownGoodVendorMarkers — substrings that match real-device GPUs.
-var knownGoodVendorMarkers = []string{
-	"apple",
-	"intel",
+// webglLegitimateVendors — verbatim from value_objects.WebGLRenderer.
+// LEGITIMATE_VENDORS.
+var webglLegitimateVendors = []string{
 	"nvidia",
 	"amd",
-	"ati ",
+	"intel",
+	"apple",
 	"qualcomm",
-	"adreno",
-	"arm ",
+	"arm",
 	"mali",
-	"powervr",
 }
