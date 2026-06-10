@@ -345,6 +345,58 @@ func TestWeightedSignalCoverage_FromProtoPayload(t *testing.T) {
 	if _, err := st.Get(context.Background(), resp.GetReqId(), 5); err != nil {
 		t.Fatalf("score must persist: %v", err)
 	}
+
+	// The Score response must carry the per-signal explanation. Its
+	// available-signal set must match the nine device signals that fired in
+	// the in-process Explain above (the wire explanation is the same scorer's
+	// output transcoded to proto).
+	wireExpl := resp.GetExplanation()
+	if wireExpl == nil {
+		t.Fatal("Score response carries no explanation; expected a populated breakdown")
+	}
+	wireFired := map[string]bool{}
+	for _, c := range wireExpl.GetSignals() {
+		if c.GetAvailable() {
+			wireFired[c.GetName()] = true
+		}
+		// contribution must equal score*weight per signal (transcode fidelity).
+		if got, wantC := c.GetContribution(), c.GetScore()*c.GetWeight(); got != wantC {
+			t.Errorf("signal %q contribution = %v, want score*weight = %v", c.GetName(), got, wantC)
+		}
+	}
+	if len(wireFired) != len(fired) {
+		t.Errorf("wire explanation fired count = %d (%v), want %d (%v)",
+			len(wireFired), keys(wireFired), len(fired), keys(fired))
+	}
+	for _, name := range want {
+		if !wireFired[name] {
+			t.Errorf("expected signal %q available in the wire explanation", name)
+		}
+	}
+	if wireExpl.GetTotal() <= 0 {
+		t.Errorf("explanation total = %v, want > 0 for a full clean payload", wireExpl.GetTotal())
+	}
+
+	// Consume must also carry an explanation, recomputed from the persisted
+	// Signals (the scorer is pure). It mirrors the Score-time breakdown.
+	consumed, err := client.Consume(context.Background(),
+		&edgev1.ConsumeRequest{ReqId: resp.GetReqId(), ApiKey: "tenant_5"})
+	if err != nil {
+		t.Fatalf("Consume over gRPC: %v", err)
+	}
+	cexpl := consumed.GetExplanation()
+	if cexpl == nil {
+		t.Fatal("Consume response carries no explanation; expected a recomputed breakdown")
+	}
+	consumeFired := 0
+	for _, c := range cexpl.GetSignals() {
+		if c.GetAvailable() {
+			consumeFired++
+		}
+	}
+	if consumeFired != len(fired) {
+		t.Errorf("consume explanation fired count = %d, want %d", consumeFired, len(fired))
+	}
 }
 
 func keys(m map[string]bool) []string {

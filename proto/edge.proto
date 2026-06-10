@@ -52,6 +52,24 @@ message ScoreResponse {
   Signals signals = 4;              // the substantive payload
   bool shadow = 5;                  // mirrors ScoreRequest.shadow
   int64 ts = 6;                     // server timestamp (unix seconds)
+  Explanation explanation = 7;      // per-signal breakdown (dashboard/calibration)
+}
+
+// Per-signal scoring breakdown — what fired, its weight, its contribution.
+// Lets the dashboard show WHY a score is what it is. Opaque/ML scorers may
+// leave it empty.
+message SignalContribution {
+  string name = 1;                  // e.g. "proxy_detection"
+  bool available = 2;               // did this signal fire (else excluded)
+  double score = 3;                 // [0,1] per-signal score
+  double weight = 4;                // calibrated weight
+  double contribution = 5;          // score * weight
+  string detail = 6;                // human-readable explanation
+}
+
+message Explanation {
+  repeated SignalContribution signals = 1;
+  double total = 2;                 // sum of contributions over available signals
 }
 
 message HealthRequest {}

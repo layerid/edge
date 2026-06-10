@@ -170,11 +170,12 @@ func (x *ConsumeRequest) GetApiKey() string {
 type ScoreResponse struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	ReqId         string                 `protobuf:"bytes,1,opt,name=req_id,json=reqId,proto3" json:"req_id,omitempty"`
-	Score         float64                `protobuf:"fixed64,2,opt,name=score,proto3" json:"score,omitempty"`   // advisory — 0.0 to 1.0
-	Verdict       string                 `protobuf:"bytes,3,opt,name=verdict,proto3" json:"verdict,omitempty"` // suggestion — "allow" | "step-up" | "deny" | "log"
-	Signals       *Signals               `protobuf:"bytes,4,opt,name=signals,proto3" json:"signals,omitempty"` // the substantive payload
-	Shadow        bool                   `protobuf:"varint,5,opt,name=shadow,proto3" json:"shadow,omitempty"`  // mirrors ScoreRequest.shadow
-	Ts            int64                  `protobuf:"varint,6,opt,name=ts,proto3" json:"ts,omitempty"`          // server timestamp (unix seconds)
+	Score         float64                `protobuf:"fixed64,2,opt,name=score,proto3" json:"score,omitempty"`           // advisory — 0.0 to 1.0
+	Verdict       string                 `protobuf:"bytes,3,opt,name=verdict,proto3" json:"verdict,omitempty"`         // suggestion — "allow" | "step-up" | "deny" | "log"
+	Signals       *Signals               `protobuf:"bytes,4,opt,name=signals,proto3" json:"signals,omitempty"`         // the substantive payload
+	Shadow        bool                   `protobuf:"varint,5,opt,name=shadow,proto3" json:"shadow,omitempty"`          // mirrors ScoreRequest.shadow
+	Ts            int64                  `protobuf:"varint,6,opt,name=ts,proto3" json:"ts,omitempty"`                  // server timestamp (unix seconds)
+	Explanation   *Explanation           `protobuf:"bytes,7,opt,name=explanation,proto3" json:"explanation,omitempty"` // per-signal breakdown (dashboard/calibration)
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -251,6 +252,152 @@ func (x *ScoreResponse) GetTs() int64 {
 	return 0
 }
 
+func (x *ScoreResponse) GetExplanation() *Explanation {
+	if x != nil {
+		return x.Explanation
+	}
+	return nil
+}
+
+// Per-signal scoring breakdown — what fired, its weight, its contribution.
+// Lets the dashboard show WHY a score is what it is. Opaque/ML scorers may
+// leave it empty.
+type SignalContribution struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Name          string                 `protobuf:"bytes,1,opt,name=name,proto3" json:"name,omitempty"`                   // e.g. "proxy_detection"
+	Available     bool                   `protobuf:"varint,2,opt,name=available,proto3" json:"available,omitempty"`        // did this signal fire (else excluded)
+	Score         float64                `protobuf:"fixed64,3,opt,name=score,proto3" json:"score,omitempty"`               // [0,1] per-signal score
+	Weight        float64                `protobuf:"fixed64,4,opt,name=weight,proto3" json:"weight,omitempty"`             // calibrated weight
+	Contribution  float64                `protobuf:"fixed64,5,opt,name=contribution,proto3" json:"contribution,omitempty"` // score * weight
+	Detail        string                 `protobuf:"bytes,6,opt,name=detail,proto3" json:"detail,omitempty"`               // human-readable explanation
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *SignalContribution) Reset() {
+	*x = SignalContribution{}
+	mi := &file_edge_proto_msgTypes[3]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *SignalContribution) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*SignalContribution) ProtoMessage() {}
+
+func (x *SignalContribution) ProtoReflect() protoreflect.Message {
+	mi := &file_edge_proto_msgTypes[3]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use SignalContribution.ProtoReflect.Descriptor instead.
+func (*SignalContribution) Descriptor() ([]byte, []int) {
+	return file_edge_proto_rawDescGZIP(), []int{3}
+}
+
+func (x *SignalContribution) GetName() string {
+	if x != nil {
+		return x.Name
+	}
+	return ""
+}
+
+func (x *SignalContribution) GetAvailable() bool {
+	if x != nil {
+		return x.Available
+	}
+	return false
+}
+
+func (x *SignalContribution) GetScore() float64 {
+	if x != nil {
+		return x.Score
+	}
+	return 0
+}
+
+func (x *SignalContribution) GetWeight() float64 {
+	if x != nil {
+		return x.Weight
+	}
+	return 0
+}
+
+func (x *SignalContribution) GetContribution() float64 {
+	if x != nil {
+		return x.Contribution
+	}
+	return 0
+}
+
+func (x *SignalContribution) GetDetail() string {
+	if x != nil {
+		return x.Detail
+	}
+	return ""
+}
+
+type Explanation struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Signals       []*SignalContribution  `protobuf:"bytes,1,rep,name=signals,proto3" json:"signals,omitempty"`
+	Total         float64                `protobuf:"fixed64,2,opt,name=total,proto3" json:"total,omitempty"` // sum of contributions over available signals
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *Explanation) Reset() {
+	*x = Explanation{}
+	mi := &file_edge_proto_msgTypes[4]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *Explanation) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*Explanation) ProtoMessage() {}
+
+func (x *Explanation) ProtoReflect() protoreflect.Message {
+	mi := &file_edge_proto_msgTypes[4]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use Explanation.ProtoReflect.Descriptor instead.
+func (*Explanation) Descriptor() ([]byte, []int) {
+	return file_edge_proto_rawDescGZIP(), []int{4}
+}
+
+func (x *Explanation) GetSignals() []*SignalContribution {
+	if x != nil {
+		return x.Signals
+	}
+	return nil
+}
+
+func (x *Explanation) GetTotal() float64 {
+	if x != nil {
+		return x.Total
+	}
+	return 0
+}
+
 type HealthRequest struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	unknownFields protoimpl.UnknownFields
@@ -259,7 +406,7 @@ type HealthRequest struct {
 
 func (x *HealthRequest) Reset() {
 	*x = HealthRequest{}
-	mi := &file_edge_proto_msgTypes[3]
+	mi := &file_edge_proto_msgTypes[5]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -271,7 +418,7 @@ func (x *HealthRequest) String() string {
 func (*HealthRequest) ProtoMessage() {}
 
 func (x *HealthRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_edge_proto_msgTypes[3]
+	mi := &file_edge_proto_msgTypes[5]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -284,7 +431,7 @@ func (x *HealthRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use HealthRequest.ProtoReflect.Descriptor instead.
 func (*HealthRequest) Descriptor() ([]byte, []int) {
-	return file_edge_proto_rawDescGZIP(), []int{3}
+	return file_edge_proto_rawDescGZIP(), []int{5}
 }
 
 type HealthResponse struct {
@@ -299,7 +446,7 @@ type HealthResponse struct {
 
 func (x *HealthResponse) Reset() {
 	*x = HealthResponse{}
-	mi := &file_edge_proto_msgTypes[4]
+	mi := &file_edge_proto_msgTypes[6]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -311,7 +458,7 @@ func (x *HealthResponse) String() string {
 func (*HealthResponse) ProtoMessage() {}
 
 func (x *HealthResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_edge_proto_msgTypes[4]
+	mi := &file_edge_proto_msgTypes[6]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -324,7 +471,7 @@ func (x *HealthResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use HealthResponse.ProtoReflect.Descriptor instead.
 func (*HealthResponse) Descriptor() ([]byte, []int) {
-	return file_edge_proto_rawDescGZIP(), []int{4}
+	return file_edge_proto_rawDescGZIP(), []int{6}
 }
 
 func (x *HealthResponse) GetOk() bool {
@@ -385,7 +532,7 @@ type DeviceSignals struct {
 
 func (x *DeviceSignals) Reset() {
 	*x = DeviceSignals{}
-	mi := &file_edge_proto_msgTypes[5]
+	mi := &file_edge_proto_msgTypes[7]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -397,7 +544,7 @@ func (x *DeviceSignals) String() string {
 func (*DeviceSignals) ProtoMessage() {}
 
 func (x *DeviceSignals) ProtoReflect() protoreflect.Message {
-	mi := &file_edge_proto_msgTypes[5]
+	mi := &file_edge_proto_msgTypes[7]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -410,7 +557,7 @@ func (x *DeviceSignals) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use DeviceSignals.ProtoReflect.Descriptor instead.
 func (*DeviceSignals) Descriptor() ([]byte, []int) {
-	return file_edge_proto_rawDescGZIP(), []int{5}
+	return file_edge_proto_rawDescGZIP(), []int{7}
 }
 
 func (x *DeviceSignals) GetCanvas() string {
@@ -558,7 +705,7 @@ type StunResult struct {
 
 func (x *StunResult) Reset() {
 	*x = StunResult{}
-	mi := &file_edge_proto_msgTypes[6]
+	mi := &file_edge_proto_msgTypes[8]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -570,7 +717,7 @@ func (x *StunResult) String() string {
 func (*StunResult) ProtoMessage() {}
 
 func (x *StunResult) ProtoReflect() protoreflect.Message {
-	mi := &file_edge_proto_msgTypes[6]
+	mi := &file_edge_proto_msgTypes[8]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -583,7 +730,7 @@ func (x *StunResult) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use StunResult.ProtoReflect.Descriptor instead.
 func (*StunResult) Descriptor() ([]byte, []int) {
-	return file_edge_proto_rawDescGZIP(), []int{6}
+	return file_edge_proto_rawDescGZIP(), []int{8}
 }
 
 func (x *StunResult) GetLeaked() bool {
@@ -632,7 +779,7 @@ type Signals struct {
 
 func (x *Signals) Reset() {
 	*x = Signals{}
-	mi := &file_edge_proto_msgTypes[7]
+	mi := &file_edge_proto_msgTypes[9]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -644,7 +791,7 @@ func (x *Signals) String() string {
 func (*Signals) ProtoMessage() {}
 
 func (x *Signals) ProtoReflect() protoreflect.Message {
-	mi := &file_edge_proto_msgTypes[7]
+	mi := &file_edge_proto_msgTypes[9]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -657,7 +804,7 @@ func (x *Signals) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use Signals.ProtoReflect.Descriptor instead.
 func (*Signals) Descriptor() ([]byte, []int) {
-	return file_edge_proto_rawDescGZIP(), []int{7}
+	return file_edge_proto_rawDescGZIP(), []int{9}
 }
 
 func (x *Signals) GetJa3Breadth() *Ja3Breadth {
@@ -727,7 +874,7 @@ type Ja3Breadth struct {
 
 func (x *Ja3Breadth) Reset() {
 	*x = Ja3Breadth{}
-	mi := &file_edge_proto_msgTypes[8]
+	mi := &file_edge_proto_msgTypes[10]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -739,7 +886,7 @@ func (x *Ja3Breadth) String() string {
 func (*Ja3Breadth) ProtoMessage() {}
 
 func (x *Ja3Breadth) ProtoReflect() protoreflect.Message {
-	mi := &file_edge_proto_msgTypes[8]
+	mi := &file_edge_proto_msgTypes[10]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -752,7 +899,7 @@ func (x *Ja3Breadth) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use Ja3Breadth.ProtoReflect.Descriptor instead.
 func (*Ja3Breadth) Descriptor() ([]byte, []int) {
-	return file_edge_proto_rawDescGZIP(), []int{8}
+	return file_edge_proto_rawDescGZIP(), []int{10}
 }
 
 func (x *Ja3Breadth) GetLabel() string {
@@ -787,7 +934,7 @@ type ResidentialProxy struct {
 
 func (x *ResidentialProxy) Reset() {
 	*x = ResidentialProxy{}
-	mi := &file_edge_proto_msgTypes[9]
+	mi := &file_edge_proto_msgTypes[11]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -799,7 +946,7 @@ func (x *ResidentialProxy) String() string {
 func (*ResidentialProxy) ProtoMessage() {}
 
 func (x *ResidentialProxy) ProtoReflect() protoreflect.Message {
-	mi := &file_edge_proto_msgTypes[9]
+	mi := &file_edge_proto_msgTypes[11]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -812,7 +959,7 @@ func (x *ResidentialProxy) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ResidentialProxy.ProtoReflect.Descriptor instead.
 func (*ResidentialProxy) Descriptor() ([]byte, []int) {
-	return file_edge_proto_rawDescGZIP(), []int{9}
+	return file_edge_proto_rawDescGZIP(), []int{11}
 }
 
 func (x *ResidentialProxy) GetSeenIn() []string {
@@ -846,7 +993,7 @@ type DhtSightings struct {
 
 func (x *DhtSightings) Reset() {
 	*x = DhtSightings{}
-	mi := &file_edge_proto_msgTypes[10]
+	mi := &file_edge_proto_msgTypes[12]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -858,7 +1005,7 @@ func (x *DhtSightings) String() string {
 func (*DhtSightings) ProtoMessage() {}
 
 func (x *DhtSightings) ProtoReflect() protoreflect.Message {
-	mi := &file_edge_proto_msgTypes[10]
+	mi := &file_edge_proto_msgTypes[12]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -871,7 +1018,7 @@ func (x *DhtSightings) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use DhtSightings.ProtoReflect.Descriptor instead.
 func (*DhtSightings) Descriptor() ([]byte, []int) {
-	return file_edge_proto_rawDescGZIP(), []int{10}
+	return file_edge_proto_rawDescGZIP(), []int{12}
 }
 
 func (x *DhtSightings) GetCount() int32 {
@@ -903,14 +1050,25 @@ const file_edge_proto_rawDesc = "" +
 	"\x06req_id\x18\x06 \x01(\tR\x05reqId\"@\n" +
 	"\x0eConsumeRequest\x12\x15\n" +
 	"\x06req_id\x18\x01 \x01(\tR\x05reqId\x12\x17\n" +
-	"\aapi_key\x18\x02 \x01(\tR\x06apiKey\"\xb2\x01\n" +
+	"\aapi_key\x18\x02 \x01(\tR\x06apiKey\"\xf2\x01\n" +
 	"\rScoreResponse\x12\x15\n" +
 	"\x06req_id\x18\x01 \x01(\tR\x05reqId\x12\x14\n" +
 	"\x05score\x18\x02 \x01(\x01R\x05score\x12\x18\n" +
 	"\averdict\x18\x03 \x01(\tR\averdict\x122\n" +
 	"\asignals\x18\x04 \x01(\v2\x18.layerid.edge.v1.SignalsR\asignals\x12\x16\n" +
 	"\x06shadow\x18\x05 \x01(\bR\x06shadow\x12\x0e\n" +
-	"\x02ts\x18\x06 \x01(\x03R\x02ts\"\x0f\n" +
+	"\x02ts\x18\x06 \x01(\x03R\x02ts\x12>\n" +
+	"\vexplanation\x18\a \x01(\v2\x1c.layerid.edge.v1.ExplanationR\vexplanation\"\xb0\x01\n" +
+	"\x12SignalContribution\x12\x12\n" +
+	"\x04name\x18\x01 \x01(\tR\x04name\x12\x1c\n" +
+	"\tavailable\x18\x02 \x01(\bR\tavailable\x12\x14\n" +
+	"\x05score\x18\x03 \x01(\x01R\x05score\x12\x16\n" +
+	"\x06weight\x18\x04 \x01(\x01R\x06weight\x12\"\n" +
+	"\fcontribution\x18\x05 \x01(\x01R\fcontribution\x12\x16\n" +
+	"\x06detail\x18\x06 \x01(\tR\x06detail\"b\n" +
+	"\vExplanation\x12=\n" +
+	"\asignals\x18\x01 \x03(\v2#.layerid.edge.v1.SignalContributionR\asignals\x12\x14\n" +
+	"\x05total\x18\x02 \x01(\x01R\x05total\"\x0f\n" +
 	"\rHealthRequest\"z\n" +
 	"\x0eHealthResponse\x12\x0e\n" +
 	"\x02ok\x18\x01 \x01(\bR\x02ok\x12\x18\n" +
@@ -993,38 +1151,42 @@ func file_edge_proto_rawDescGZIP() []byte {
 	return file_edge_proto_rawDescData
 }
 
-var file_edge_proto_msgTypes = make([]protoimpl.MessageInfo, 11)
+var file_edge_proto_msgTypes = make([]protoimpl.MessageInfo, 13)
 var file_edge_proto_goTypes = []any{
-	(*ScoreRequest)(nil),     // 0: layerid.edge.v1.ScoreRequest
-	(*ConsumeRequest)(nil),   // 1: layerid.edge.v1.ConsumeRequest
-	(*ScoreResponse)(nil),    // 2: layerid.edge.v1.ScoreResponse
-	(*HealthRequest)(nil),    // 3: layerid.edge.v1.HealthRequest
-	(*HealthResponse)(nil),   // 4: layerid.edge.v1.HealthResponse
-	(*DeviceSignals)(nil),    // 5: layerid.edge.v1.DeviceSignals
-	(*StunResult)(nil),       // 6: layerid.edge.v1.StunResult
-	(*Signals)(nil),          // 7: layerid.edge.v1.Signals
-	(*Ja3Breadth)(nil),       // 8: layerid.edge.v1.Ja3Breadth
-	(*ResidentialProxy)(nil), // 9: layerid.edge.v1.ResidentialProxy
-	(*DhtSightings)(nil),     // 10: layerid.edge.v1.DhtSightings
+	(*ScoreRequest)(nil),       // 0: layerid.edge.v1.ScoreRequest
+	(*ConsumeRequest)(nil),     // 1: layerid.edge.v1.ConsumeRequest
+	(*ScoreResponse)(nil),      // 2: layerid.edge.v1.ScoreResponse
+	(*SignalContribution)(nil), // 3: layerid.edge.v1.SignalContribution
+	(*Explanation)(nil),        // 4: layerid.edge.v1.Explanation
+	(*HealthRequest)(nil),      // 5: layerid.edge.v1.HealthRequest
+	(*HealthResponse)(nil),     // 6: layerid.edge.v1.HealthResponse
+	(*DeviceSignals)(nil),      // 7: layerid.edge.v1.DeviceSignals
+	(*StunResult)(nil),         // 8: layerid.edge.v1.StunResult
+	(*Signals)(nil),            // 9: layerid.edge.v1.Signals
+	(*Ja3Breadth)(nil),         // 10: layerid.edge.v1.Ja3Breadth
+	(*ResidentialProxy)(nil),   // 11: layerid.edge.v1.ResidentialProxy
+	(*DhtSightings)(nil),       // 12: layerid.edge.v1.DhtSightings
 }
 var file_edge_proto_depIdxs = []int32{
-	5,  // 0: layerid.edge.v1.ScoreRequest.device:type_name -> layerid.edge.v1.DeviceSignals
-	7,  // 1: layerid.edge.v1.ScoreResponse.signals:type_name -> layerid.edge.v1.Signals
-	6,  // 2: layerid.edge.v1.DeviceSignals.stun:type_name -> layerid.edge.v1.StunResult
-	8,  // 3: layerid.edge.v1.Signals.ja3_breadth:type_name -> layerid.edge.v1.Ja3Breadth
-	9,  // 4: layerid.edge.v1.Signals.residential_proxy:type_name -> layerid.edge.v1.ResidentialProxy
-	10, // 5: layerid.edge.v1.Signals.dht_sightings:type_name -> layerid.edge.v1.DhtSightings
-	0,  // 6: layerid.edge.v1.Edge.Score:input_type -> layerid.edge.v1.ScoreRequest
-	1,  // 7: layerid.edge.v1.Edge.Consume:input_type -> layerid.edge.v1.ConsumeRequest
-	3,  // 8: layerid.edge.v1.Edge.Health:input_type -> layerid.edge.v1.HealthRequest
-	2,  // 9: layerid.edge.v1.Edge.Score:output_type -> layerid.edge.v1.ScoreResponse
-	2,  // 10: layerid.edge.v1.Edge.Consume:output_type -> layerid.edge.v1.ScoreResponse
-	4,  // 11: layerid.edge.v1.Edge.Health:output_type -> layerid.edge.v1.HealthResponse
-	9,  // [9:12] is the sub-list for method output_type
-	6,  // [6:9] is the sub-list for method input_type
-	6,  // [6:6] is the sub-list for extension type_name
-	6,  // [6:6] is the sub-list for extension extendee
-	0,  // [0:6] is the sub-list for field type_name
+	7,  // 0: layerid.edge.v1.ScoreRequest.device:type_name -> layerid.edge.v1.DeviceSignals
+	9,  // 1: layerid.edge.v1.ScoreResponse.signals:type_name -> layerid.edge.v1.Signals
+	4,  // 2: layerid.edge.v1.ScoreResponse.explanation:type_name -> layerid.edge.v1.Explanation
+	3,  // 3: layerid.edge.v1.Explanation.signals:type_name -> layerid.edge.v1.SignalContribution
+	8,  // 4: layerid.edge.v1.DeviceSignals.stun:type_name -> layerid.edge.v1.StunResult
+	10, // 5: layerid.edge.v1.Signals.ja3_breadth:type_name -> layerid.edge.v1.Ja3Breadth
+	11, // 6: layerid.edge.v1.Signals.residential_proxy:type_name -> layerid.edge.v1.ResidentialProxy
+	12, // 7: layerid.edge.v1.Signals.dht_sightings:type_name -> layerid.edge.v1.DhtSightings
+	0,  // 8: layerid.edge.v1.Edge.Score:input_type -> layerid.edge.v1.ScoreRequest
+	1,  // 9: layerid.edge.v1.Edge.Consume:input_type -> layerid.edge.v1.ConsumeRequest
+	5,  // 10: layerid.edge.v1.Edge.Health:input_type -> layerid.edge.v1.HealthRequest
+	2,  // 11: layerid.edge.v1.Edge.Score:output_type -> layerid.edge.v1.ScoreResponse
+	2,  // 12: layerid.edge.v1.Edge.Consume:output_type -> layerid.edge.v1.ScoreResponse
+	6,  // 13: layerid.edge.v1.Edge.Health:output_type -> layerid.edge.v1.HealthResponse
+	11, // [11:14] is the sub-list for method output_type
+	8,  // [8:11] is the sub-list for method input_type
+	8,  // [8:8] is the sub-list for extension type_name
+	8,  // [8:8] is the sub-list for extension extendee
+	0,  // [0:8] is the sub-list for field type_name
 }
 
 func init() { file_edge_proto_init() }
@@ -1038,7 +1200,7 @@ func file_edge_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_edge_proto_rawDesc), len(file_edge_proto_rawDesc)),
 			NumEnums:      0,
-			NumMessages:   11,
+			NumMessages:   13,
 			NumExtensions: 0,
 			NumServices:   1,
 		},

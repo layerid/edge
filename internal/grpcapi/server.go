@@ -110,7 +110,11 @@ func (s *Server) Score(ctx context.Context, req *edgev1.ScoreRequest) (*edgev1.S
 		return nil, status.Error(codes.Internal, "store init: "+err.Error())
 	}
 
-	return scoreResponseFromLookup(stored, req.GetShadow()), nil
+	resp := scoreResponseFromLookup(stored, req.GetShadow())
+	// Per-signal breakdown from the SAME scorer that produced the score.
+	// Explain may return nil (opaque scorers) -> leave explanation nil.
+	resp.Explanation = toProtoExplanation(scorer.Explain(sig))
+	return resp, nil
 }
 
 // Consume implements the one-time race-safe consume contract. It is
@@ -143,7 +147,15 @@ func (s *Server) Consume(ctx context.Context, req *edgev1.ConsumeRequest) (*edge
 	// first consume and replay (proto has no replayed field). shadow is
 	// always false here — ConsumeRequest carries no shadow flag, and we
 	// don't persist the original Score-time shadow value on the Lookup.
-	return scoreResponseFromLookup(result.Lookup, false), nil
+	resp := scoreResponseFromLookup(result.Lookup, false)
+
+	// The scorer is pure, so recompute the per-signal breakdown from the
+	// persisted Signals rather than storing an explanation column. A missing
+	// or opaque scorer simply leaves explanation nil.
+	if scorer, err := s.reg.Get(s.defaultScorer); err == nil {
+		resp.Explanation = toProtoExplanation(scorer.Explain(result.Lookup.Signals))
+	}
+	return resp, nil
 }
 
 // Health is the K8s liveness/readiness probe. upstream_ok is false and
@@ -254,6 +266,30 @@ func signalsPayloadFromDomain(sig score.Signals) *edgev1.Signals {
 	}
 
 	return out
+}
+
+// toProtoExplanation transcodes the domain *score.Explanation into the proto
+// *edgev1.Explanation. A nil input (opaque/ML scorers that don't explain)
+// yields a nil result, so resp.Explanation stays unset on the wire.
+func toProtoExplanation(e *score.Explanation) *edgev1.Explanation {
+	if e == nil {
+		return nil
+	}
+	signals := make([]*edgev1.SignalContribution, 0, len(e.Signals))
+	for _, c := range e.Signals {
+		signals = append(signals, &edgev1.SignalContribution{
+			Name:         c.Name,
+			Available:    c.Available,
+			Score:        c.Score,
+			Weight:       c.Weight,
+			Contribution: c.Contribution,
+			Detail:       c.Detail,
+		})
+	}
+	return &edgev1.Explanation{
+		Signals: signals,
+		Total:   e.Total,
+	}
 }
 
 // --- Helpers -----------------------------------------------------------
